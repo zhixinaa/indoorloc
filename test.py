@@ -173,7 +173,7 @@ def floorPredict(path2):
     t1 = int(round(time() * 1000))
 
 
-    stacking(CNN_test_predict,
+    return stacking(CNN_test_predict,
              ELM_test_predict,
              SVM_test_pre,
              XGB_test_predict)
