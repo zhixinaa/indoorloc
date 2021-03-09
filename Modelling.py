@@ -1,10 +1,14 @@
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 import xgboost as xgb
 from numpy.random import seed
 from sklearn import svm
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.multioutput import MultiOutputRegressor
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix, accuracy_score, r2_score, mean_squared_error
 import os
 seed(1)
 from tensorflow import random
@@ -18,26 +22,41 @@ from keras.models import Model  # 泛型模型
 from keras.layers import Dense, Input
 from sklearn.ensemble import RandomForestClassifier
 import pickle
+from matplotlib import pyplot as plt
 
-global X_test, y_test
+global X_test, y_test , loc_test
 Max_ceng = 13
 
 def data():
-    global X_test, y_test
-    os.makedirs('./model/')
+    global X_test, y_test ,loc_test
+    if not os.path.exists('./model/'):
+        os.makedirs('./model/')
     path1 = "./trainingData.csv"
     path2 = "./validationData.csv"
-    X_train = np.array(np.loadtxt(path1, skiprows=1, delimiter=",", usecols=np.arange(0, 520), dtype=int))
-    FLOOR = np.array(np.loadtxt(path1, skiprows=1, delimiter=",", usecols=(522,), dtype=int))  # 0~4
-    BUILDINGID = np.array(np.loadtxt(path1, skiprows=1, delimiter=",", usecols=(523,), dtype=int))  # 0~2
+    train = pd.read_csv(path1, index_col=None)
+    test = pd.read_csv(path2, index_col=None)
+    print('Training dataset (length, width) = {}'.format(str(train.shape)))
+    print('Validation dataset (length, width) = {}'.format(str(test.shape)))
+
+    X_train = np.array(train[[x for x in train.columns if 'WAP' in x]])
+    lon_train = np.array(train['LONGITUDE'])
+    lat_train = np.array(train['LATITUDE'])
+    FLOOR = np.array(train['FLOOR'])  # 0~4
+    BUILDINGID =  np.array(train['BUILDINGID'])  # 0~2
+    loc_train = np.column_stack([lon_train.reshape(-1,1),lat_train.reshape(-1,1)])
     y_train = np.multiply(BUILDINGID, 4) + FLOOR  # 每栋楼4层
     y_train = y_train.reshape(y_train.size, 1)
 
-    X_test = np.array(np.loadtxt(path2, skiprows=1, delimiter=",", usecols=np.arange(0, 520), dtype=int))
-    FLOORt = np.array(np.loadtxt(path2, skiprows=1, delimiter=",", usecols=(522,), dtype=int))  # 0~4
-    BUILDINGIDt = np.array(np.loadtxt(path2, skiprows=1, delimiter=",", usecols=(523,), dtype=int))  # 0~2
+    X_test = np.array(test[[x for x in test.columns if 'WAP' in x]])
+    lon_test = np.array(test['LONGITUDE'])
+    lat_test = np.array(test['LATITUDE'])
+    FLOORt = np.array(test['FLOOR'])  # 0~4
+    BUILDINGIDt = np.array(test['BUILDINGID'])  # 0~2
     y_test = np.multiply(BUILDINGIDt, 4) + FLOORt  # 每栋楼4层
     y_test = y_test.reshape(y_test.size, 1)
+    loc_test = np.column_stack([lon_test.reshape(-1,1),lat_test.reshape(-1,1)])
+
+
     for i in np.arange(0, X_train.shape[0]):
         for j in np.arange(0, X_train.shape[1]):
             X_train[i][j] = 0 if X_train[i][j] == 100 else 104 + X_train[i][j]
@@ -47,7 +66,7 @@ def data():
             X_test[i][j] = 0 if X_test[i][j] == 100 else 104 + X_test[i][j]
     X_train = X_train / 104
     X_test = X_test / 104
-    return X_train, y_train, X_test, y_test
+    return X_train, y_train, X_test, y_test ,loc_train
 
 
 def randomforest(X_train, y_train):
@@ -60,8 +79,10 @@ def randomforest(X_train, y_train):
 
     # 465
     i = j = 0
-    while i < len(clf.feature_importances_):
-        if (clf.feature_importances_[i] == 0):  # 删除
+    lenclf = len(clf.feature_importances_)
+    clffeature_importances_ = clf.feature_importances_
+    while i < lenclf:
+        if (clffeature_importances_[i] == 0):  # 删除
             X_train = np.delete(X_train, j, axis=1)
             X_test = np.delete(X_test, j, axis=1)
             j -= 1
@@ -106,6 +127,38 @@ def autoencoder(X_train, X_test):
 
     encoder.save('./model/encoder.h5')  # 保存
     return X_train, X_test
+def pythagoras(long1, long2, lat1, lat2):
+    a = abs(long1-long2)**2
+    b = abs(lat1-lat2)**2
+    return np.sqrt(a+b)
+def knnregress(X_train,loc_train):
+    reg_knn = MultiOutputRegressor(KNeighborsRegressor(n_neighbors=2))
+    reg_knn.fit(X_train,loc_train)
+    loc_preds = reg_knn.predict(X_test)
+    pickle.dump(reg_knn, open('./model/reg_knn.pkl', 'wb'))  # 保存
+    rsq = r2_score(loc_test, loc_preds)
+    print('R-squared score: {:.4f}'.format(rsq))
+    print('Mean Squared Error:')
+    ll_mse = dict(zip(['Latitude', 'Longitude'],
+                      mean_squared_error(loc_test, loc_preds, multioutput='raw_values')))
+    for k, v in ll_mse.items():
+        print('\t{}: {:.2f}'.format(k, v))
+
+    test_sub = pythagoras(loc_test[:,0], loc_preds[:,0] ,loc_test[:,1], loc_preds[:,1] )
+
+    org_ar = test_sub.mean()
+    print('On average, the current model is accurate up to {:.2f}m radius.'.format(org_ar))
+
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    plt.suptitle('Geographical Distribution of Actual vs. Predicted Records', fontsize=15)
+    ax1.scatter(loc_test[:,0],loc_test[:,1], s=10, c='b', marker="s", label='Actual')
+    ax1.scatter(loc_preds[:,0],loc_preds[:,1], s=10, c='r', marker="o", label='Predicted')
+    plt.xlabel('LATITUDE')
+    plt.ylabel('LONGITUDE')
+    plt.tight_layout(2)
+    plt.legend(loc='upper right')
+    plt.show()
 
 
 def cnnClassifier(X_train1, X_train2,X_test, y_train1):
@@ -261,9 +314,12 @@ def stacking(CNN_predict, CNN_test_predict,
 
 if __name__ == '__main__':
     global X_test, y_test
-    X_train, y_train, X_test, y_test = data()
+    X_train, y_train, X_test, y_test ,loc_train= data()
     X_train, y_train = randomforest(X_train, y_train)
     X_train, X_test = autoencoder(X_train, X_test)
+
+    knnregress(X_train, loc_train)
+
     # train1用来训练第一层分类器，train2训练最后一层分类器
     X_train1, X_train2, y_train1, y_train2 = train_test_split(X_train, y_train, test_size=0.5)
     X_train2, y_train2 = X_train, y_train

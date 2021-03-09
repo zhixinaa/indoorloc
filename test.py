@@ -19,24 +19,65 @@ from keras.models import Model  # 泛型模型
 from keras.layers import Dense, Input
 from sklearn.ensemble import RandomForestClassifier
 import pickle
-
-global X_test, y_test
+import os
+import pandas as pd
+global X_test, y_test ,loc_test
 Max_ceng = 13
 
 def data(path2):
+    #train = pd.read_csv(path1, index_col=None)
+    test = pd.read_csv(path2, index_col=None)
+    #print('Training dataset (length, width) = {}'.format(str(train.shape)))
+    print('Validation dataset (length, width) = {}'.format(str(test.shape)))
 
-    X_test = np.array(np.loadtxt(path2, skiprows=1, delimiter=",", usecols=np.arange(0, 520), dtype=int))
-    FLOORt = np.array(np.loadtxt(path2, skiprows=1, delimiter=",", usecols=(522,), dtype=int))  # 0~4
-    BUILDINGIDt = np.array(np.loadtxt(path2, skiprows=1, delimiter=",", usecols=(523,), dtype=int))  # 0~2
+    X_test = np.array( test[[x for x in test.columns if 'WAP' in x]])
+    lon_test = np.array(test['LONGITUDE'])
+    lat_test = np.array(test['LATITUDE'])
+    FLOORt = np.array(test['FLOOR'])  # 0~4
+    BUILDINGIDt = np.array(test['BUILDINGID'])  # 0~2
     y_test = np.multiply(BUILDINGIDt, 4) + FLOORt  # 每栋楼4层
     y_test = y_test.reshape(y_test.size, 1)
+    loc_test = np.column_stack([lon_test.reshape(-1,1),lat_test.reshape(-1,1)])
 
     for i in np.arange(0, X_test.shape[0]):
         for j in np.arange(0, X_test.shape[1]):
             X_test[i][j] = 0 if X_test[i][j] == 100 else 104 + X_test[i][j]
     X_test = X_test / 104
-
-    return X_test, y_test
+    #
+    # def create_stacked_bar(matrix, axis):
+    #     bar_renderers = []
+    #     ind = np.arange(matrix.shape[1])
+    #     bottoms = np.cumsum(np.vstack((np.zeros(matrix.shape[1]), matrix)), axis=0)[:-1]
+    #     for i, row in enumerate(matrix):
+    #         r = axis.bar(ind, row, width=0.5, bottom=bottoms[i])
+    #         bar_renderers.append(r)
+    #     return bar_renderers
+    # from matplotlib import pyplot as plt
+    #
+    # fb_counts = test.groupby(['FLOOR', 'BUILDINGID']).TIMESTAMP.count().reset_index()
+    # print( test.groupby(['FLOOR', 'BUILDINGID']))
+    # # Inserting dummy rows for missing floor x building combinations
+    # for f in np.arange(0, 5):
+    #     for b in np.arange(0, 3):
+    #         if not ((fb_counts['FLOOR'] == f) & (fb_counts['BUILDINGID'] == b)).any():
+    #             fb_counts = fb_counts.append({'FLOOR': f, 'BUILDINGID': b, 'TIMESTAMP': 0}, ignore_index=True)
+    # fb_counts.groupby(['BUILDINGID']).TIMESTAMP.sum().reset_index().rename(columns={'TIMESTAMP': 'RECORDS'})
+    #
+    # pivot_fb = fb_counts.pivot(index='FLOOR', columns='BUILDINGID')
+    # print('pivot_fb.values', pivot_fb.values)
+    # buildings = list(set(fb_counts['BUILDINGID'].tolist()))
+    # print('buildings',buildings)
+    # plt.figure(figsize=(15, 5))
+    # bars = create_stacked_bar(pivot_fb.values, plt)
+    # # Plot formatting
+    # plt.legend((reversed([x[0] for x in bars])), (4, 3, 2, 1, 0), fancybox=True)
+    # plt.title('Number of Records by Building and Floor', fontsize=20)
+    # plt.xticks(buildings)
+    # plt.xlabel('Buildings')
+    # plt.ylabel('Number of Records')
+    #
+    # plt.show()
+    return X_test, y_test  ,loc_test
 
 
 def randomforest(X_test):
@@ -51,7 +92,6 @@ def randomforest(X_test):
         if (clf_feature_importances_[i] != 0):
             Temp.append(i)
         i += 1
-        print(i)
     print('RF', len(Temp))
     return X_test[:,Temp]
 
@@ -63,6 +103,11 @@ def autoencoder(X_test):
     X_test = np.array(encoder.predict(X_test))
     return X_test
 
+def knnregress(X_test):
+    from matplotlib import pyplot as plt
+    reg_knn = pickle.load( open('./model/reg_knn.pkl', 'rb'))  # 保存
+    loc_preds = reg_knn.predict(X_test)
+    return loc_preds
 
 def cnnClassifier(X_test):
 
@@ -133,14 +178,14 @@ def stacking( CNN_test_predict,
     floor_predict = model.predict(dtest)
     accuracy = accuracy_score(y_test, floor_predict)
     print('stacking XGB', accuracy)
-    return  floor_predict,y_test
+    return  floor_predict
 
 
 def floorPredict(path2):
-    global X_test, y_test
+    global X_test, y_test , loc_test
     t1 = int(round(time() * 1000))
 
-    X_test, y_test = data(path2)
+    X_test, y_test, loc_test = data(path2)
     print('tdata',int(round(time() * 1000))-t1)
     t1 = int(round(time() * 1000))
     print(X_test.shape)
@@ -154,6 +199,10 @@ def floorPredict(path2):
     print('tENCODER',int(round(time() * 1000))-t1)
     t1 = int(round(time() * 1000))
     print(X_test.shape)
+
+    loc_preds = knnregress(X_test)
+    print('tKNN', int(round(time() * 1000)) - t1)
+    t1 = int(round(time() * 1000))
 
     CNN_test_predict = cnnClassifier(X_test)
     print('tCNN',int(round(time() * 1000))-t1)
@@ -172,13 +221,14 @@ def floorPredict(path2):
     print('tXGB',int(round(time() * 1000))-t1)
     t1 = int(round(time() * 1000))
 
-
-    stacking(CNN_test_predict,
+    Stacking_test_predict = stacking(CNN_test_predict,
              ELM_test_predict,
              SVM_test_pre,
              XGB_test_predict)
+
     print('tSTACKING',int(round(time() * 1000))-t1)
     t1 = int(round(time() * 1000))
+    return Stacking_test_predict,y_test , loc_preds ,loc_test
 
 
 
