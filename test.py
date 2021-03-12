@@ -7,6 +7,7 @@ from numpy.random import seed
 from sklearn import svm
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
+
 seed(1)
 from tensorflow import random
 
@@ -21,24 +22,27 @@ from sklearn.ensemble import RandomForestClassifier
 import pickle
 import os
 import pandas as pd
-global X_test, y_test ,loc_test
+
+global X_test, y_test, loc_test, test
 Max_ceng = 13
 
+
 def data(path2):
-    #train = pd.read_csv(path1, index_col=None)
+    global test
+    # train = pd.read_csv(path1, index_col=None)
     test = pd.read_csv(path2, index_col=None)
-    #print('Training dataset (length, width) = {}'.format(str(train.shape)))
+    # print('Training dataset (length, width) = {}'.format(str(train.shape)))
     print('Validation dataset (length, width) = {}'.format(str(test.shape)))
 
-    X_test = np.array( test[[x for x in test.columns if 'WAP' in x]])
+    X_test = np.array(test[[x for x in test.columns if 'WAP' in x]])
     lon_test = np.array(test['LONGITUDE'])
     lat_test = np.array(test['LATITUDE'])
     FLOORt = np.array(test['FLOOR'])  # 0~4
     BUILDINGIDt = np.array(test['BUILDINGID'])  # 0~2
     y_test = np.multiply(BUILDINGIDt, 4) + FLOORt  # 每栋楼4层
     y_test = y_test.reshape(y_test.size, 1)
-    loc_test = np.column_stack([lon_test.reshape(-1,1),lat_test.reshape(-1,1)])
-
+    loc_test = np.column_stack([lon_test.reshape(-1, 1), lat_test.reshape(-1, 1)])
+    test['target'] = 'B' + test['BUILDINGID'].astype(str) + ' x F' + test['FLOOR'].astype(str)
     for i in np.arange(0, X_test.shape[0]):
         for j in np.arange(0, X_test.shape[1]):
             X_test[i][j] = 0 if X_test[i][j] == 100 else 104 + X_test[i][j]
@@ -77,12 +81,12 @@ def data(path2):
     # plt.ylabel('Number of Records')
     #
     # plt.show()
-    return X_test, y_test  ,loc_test
+    return X_test, y_test, loc_test
 
 
 def randomforest(X_test):
     # RF
-    clf = pickle.load(open('./model/RF.pkl','rb'))  # 加载
+    clf = pickle.load(open('./model/RF.pkl', 'rb'))  # 加载
     Temp = []
     # 465
     i = 0
@@ -93,7 +97,7 @@ def randomforest(X_test):
             Temp.append(i)
         i += 1
     print('RF', len(Temp))
-    return X_test[:,Temp]
+    return X_test[:, Temp]
 
 
 def autoencoder(X_test):
@@ -103,14 +107,15 @@ def autoencoder(X_test):
     X_test = np.array(encoder.predict(X_test))
     return X_test
 
+
 def knnregress(X_test):
     from matplotlib import pyplot as plt
-    reg_knn = pickle.load( open('./model/reg_knn.pkl', 'rb'))  # 保存
+    reg_knn = pickle.load(open('./model/reg_knn.pkl', 'rb'))  # 保存
     loc_preds = reg_knn.predict(X_test)
     return loc_preds
 
-def cnnClassifier(X_test):
 
+def cnnClassifier(X_test):
     input_x, input_y = 8, 7
     X_test = X_test.reshape(len(X_test), input_x, input_y, 1)
 
@@ -143,15 +148,14 @@ def elmClassifier(X_test):
 
 def svmClassifier(X_test):
     ##SVM
-    svm1 = pickle.load(open('./model/svmClassifier.pkl','rb'))  # 保存
+    svm1 = pickle.load(open('./model/svmClassifier.pkl', 'rb'))  # 保存
     SVM_test_pre = np.array(svm1.predict(X_test), dtype=int)
     print('SVM', ' accuracy ： ', accuracy_score(y_test, SVM_test_pre))
     return SVM_test_pre
 
 
 def xgboostClassifier(X_test):
-
-    model =pickle.load( open('./model/xgboostClassifier.pkl','rb'))
+    model = pickle.load(open('./model/xgboostClassifier.pkl', 'rb'))
 
     ##
     dtest = xgb.DMatrix(X_test)
@@ -161,11 +165,10 @@ def xgboostClassifier(X_test):
     return XGB_test_predict
 
 
-def stacking( CNN_test_predict,
-              ELM_test_predict,
-              SVM_test_pre,
-              XGB_test_predict):
-
+def stacking(CNN_test_predict,
+             ELM_test_predict,
+             SVM_test_pre,
+             XGB_test_predict):
     X_test_last = np.concatenate(
         [ELM_test_predict, SVM_test_pre, XGB_test_predict, CNN_test_predict], axis=0)
     X_test_last = X_test_last.reshape(4, int(len(X_test_last) / 4))
@@ -173,30 +176,30 @@ def stacking( CNN_test_predict,
 
     # XGB
 
-    model = pickle.load( open('./model/stackingClassifier.pkl','rb'))
+    model = pickle.load(open('./model/stackingClassifier.pkl', 'rb'))
     dtest = xgb.DMatrix(X_test_last)
     floor_predict = model.predict(dtest)
     accuracy = accuracy_score(y_test, floor_predict)
     print('stacking XGB', accuracy)
-    return  floor_predict
+    return floor_predict
 
 
 def floorPredict(path2):
-    global X_test, y_test , loc_test
+    global X_test, y_test, loc_test
     t1 = int(round(time() * 1000))
 
     X_test, y_test, loc_test = data(path2)
-    print('tdata',int(round(time() * 1000))-t1)
+    print('tdata', int(round(time() * 1000)) - t1)
     t1 = int(round(time() * 1000))
     print(X_test.shape)
 
     X_test = randomforest(X_test)
-    print('tRF',int(round(time() * 1000))-t1)
+    print('tRF', int(round(time() * 1000)) - t1)
     t1 = int(round(time() * 1000))
     print(X_test.shape)
 
     X_test = autoencoder(X_test)
-    print('tENCODER',int(round(time() * 1000))-t1)
+    print('tENCODER', int(round(time() * 1000)) - t1)
     t1 = int(round(time() * 1000))
     print(X_test.shape)
 
@@ -205,33 +208,44 @@ def floorPredict(path2):
     t1 = int(round(time() * 1000))
 
     CNN_test_predict = cnnClassifier(X_test)
-    print('tCNN',int(round(time() * 1000))-t1)
+    print('tCNN', int(round(time() * 1000)) - t1)
     t1 = int(round(time() * 1000))
 
-
     ELM_test_predict = elmClassifier(X_test)
-    print('tELM',int(round(time() * 1000))-t1)
+    print('tELM', int(round(time() * 1000)) - t1)
     t1 = int(round(time() * 1000))
 
     SVM_test_pre = svmClassifier(X_test)
-    print('tSVM',int(round(time() * 1000))-t1)
+    print('tSVM', int(round(time() * 1000)) - t1)
     t1 = int(round(time() * 1000))
 
     XGB_test_predict = xgboostClassifier(X_test)
-    print('tXGB',int(round(time() * 1000))-t1)
+    print('tXGB', int(round(time() * 1000)) - t1)
     t1 = int(round(time() * 1000))
 
     Stacking_test_predict = stacking(CNN_test_predict,
-             ELM_test_predict,
-             SVM_test_pre,
-             XGB_test_predict)
+                                     ELM_test_predict,
+                                     SVM_test_pre,
+                                     XGB_test_predict)
 
-    print('tSTACKING',int(round(time() * 1000))-t1)
+    print('tSTACKING', int(round(time() * 1000)) - t1)
     t1 = int(round(time() * 1000))
-    return Stacking_test_predict,y_test , loc_preds ,loc_test
 
+
+    '''labels = ['B0F0', 'B0F1', 'B0F2', 'B0F3',
+              'B1F0', 'B1F1', 'B1F2', 'B1F3',
+              'B2F0', 'B2F1', 'B2F2', 'B2F3', 'B2F4']
+    from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+    import matplotlib.pyplot as plt
+    cm = confusion_matrix(y_test, Stacking_test_predict,)
+    print(cm)
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm,display_labels=labels)
+    disp.plot()
+    plt.show()'''
+
+    return Stacking_test_predict, y_test, loc_preds, loc_test
 
 
 if __name__ == '__main__':
     path2 = "./validationData.csv"
-    floorPredict(path2)
+    Stacking_test_predict, y_test, loc_preds, loc_test = floorPredict(path2)

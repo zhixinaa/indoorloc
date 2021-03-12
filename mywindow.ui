@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1231</width>
-    <height>855</height>
+    <width>1186</width>
+    <height>896</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -100,7 +100,7 @@
          <attribute name="title">
           <string>数据测试预览</string>
          </attribute>
-         <layout class="QHBoxLayout" name="horizontalLayout_4">
+         <layout class="QHBoxLayout" name="horizontalLayout_3">
           <item>
            <layout class="QVBoxLayout" name="verticalLayout_2">
             <property name="sizeConstraint">
@@ -122,7 +122,7 @@
         </widget>
         <widget class="QWidget" name="tab_2">
          <property name="sizePolicy">
-          <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
            <horstretch>0</horstretch>
            <verstretch>0</verstretch>
           </sizepolicy>
@@ -130,15 +130,21 @@
          <property name="maximumSize">
           <size>
            <width>16777215</width>
-           <height>703</height>
+           <height>16777215</height>
           </size>
          </property>
          <attribute name="title">
           <string>楼层预测结果</string>
          </attribute>
-         <layout class="QHBoxLayout" name="horizontalLayout_3">
+         <layout class="QHBoxLayout" name="horizontalLayout_4">
           <item>
            <widget class="QGroupBox" name="groupBox_2">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="title">
              <string/>
             </property>
@@ -152,7 +158,7 @@
          </attribute>
          <layout class="QHBoxLayout" name="horizontalLayout_5">
           <item>
-           <widget class="QGroupBox" name="groupBox">
+           <widget class="QGroupBox" name="groupBox_3">
             <property name="title">
              <string/>
             </property>
@@ -171,7 +177,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1231</width>
+     <width>1186</width>
      <height>26</height>
     </rect>
    </property>

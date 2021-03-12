@@ -73,6 +73,18 @@ class MyFigure(FigureCanvas):
         ax1.set_xticks(buildings)
         ax1.set_xlabel('Buildings')
         ax1.set_ylabel('Number of Records')
+    def plot_confusion_matrix(self, y, y_predict):
+        ax1 = self.axes
+        self.fig.suptitle('ConfusionMatrix', fontsize=15)
+        labels = ['B0F0', 'B0F1', 'B0F2', 'B0F3',
+                  'B1F0', 'B1F1', 'B1F2', 'B1F3',
+                  'B2F0', 'B2F1', 'B2F2', 'B2F3', 'B2F4']
+        from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+        import matplotlib.pyplot as plt
+        cm = confusion_matrix(y, y_predict )
+        print(cm)
+        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
+        disp.plot(ax=ax1)
 
 
 class MainForm(QMainWindow, Ui_MainWindow):
@@ -103,14 +115,14 @@ class MainForm(QMainWindow, Ui_MainWindow):
         self.F = MyFigure(width=3, height=2, dpi=100)
         self.F.plot_position(loc_preds, loc_test)
         # 第六步：在GUI的groupBox中创建一个布局，用于添加MyFigure类的实例（即图形）后其他部件。
-        self.gridlayout = QGridLayout(self.groupBox)  # 继承容器groupBox
+        self.gridlayout = QGridLayout(self.groupBox_3)  # 继承容器groupBox
         self.gridlayout.addWidget(self.F, 1, 0, )
         # self.gridlayout.addWidget(self.tableView, 0, 0 )
 
         self.F2 = MyFigure(width=4, height=2, dpi=80)
         self.F2.plot_floor(buildiing_floor)
-        self.F3 = MyFigure(width=4, height=2, dpi=80)
-        self.F3.plot_position(loc_preds, loc_test)
+        self.F3 = MyFigure(width=4, height=2, dpi=70)
+        self.F3.plot_confusion_matrix(y_test, floor_predict)
         self.vboxLayout_1 = QVBoxLayout()
         self.vboxLayout_1.addWidget(self.F2)
         self.vboxLayout_1.addWidget(self.F3)
